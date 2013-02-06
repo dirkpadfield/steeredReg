@@ -1,4 +1,4 @@
-#Modefied version based on Steve Pieper's Regmatic.py by Kunlin Cao (GE Research) on 06/22/2012
+#Modified version based on Steve Pieper's Regmatic.py by Kunlin Cao (GE Research) on 06/22/2012
 
 from __main__ import vtk, qt, ctk, slicer
 from math import *
@@ -12,13 +12,13 @@ class steeredReg:
     parent.title = "steeredReg"
     parent.categories = ["Registration"]
     parent.dependencies = []
-    parent.contributors = ["Steve Pieper (Isomics), Kunlin Cao (GE)"] # replace with "Firstname Lastname (Org)"
+    parent.contributors = ["Steve Pieper (Isomics), Kunlin Cao (GE), and Dirk Padfield (GE)"] # replace with "Firstname Lastname (Org)"
     parent.helpText = """
     Steerable registration example as a scripted loadable extension.
     """
     parent.acknowledgementText = """
     This file was originally developed by Steve Pieper and was partially funded by NIH grant 3P41RR013218.
-    Kunlin Cao continued to develope the interaction part.
+    Kunlin Cao and Dirk Padfield continued the development.
 """ # replace with organization, grant and thanks.
     self.parent = parent
 
@@ -259,13 +259,14 @@ class steeredRegWidget:
 
     # Apply button
     self.regButton = qt.QPushButton("Apply")
-    self.regButton.toolTip = "Run affine registration."
+    self.regButton.toolTip = "Run registration."
+    self.regButton.checkable = True
     #self.regFormLayout.addWidget(self.regButton)
     regFormLayout.addRow(self.regButton)
-    self.regButton.connect('clicked(bool)', self.onApply)
+    self.regButton.connect('toggled(bool)', self.onApply)
 
     # Add vertical spacer
-    self.layout.addStretch(1)
+    #self.layout.addStretch(1)
 
     # Set local var as instance attribute
     #self.regButton = regButton
@@ -274,7 +275,6 @@ class steeredRegWidget:
     for regType in regTypes:
       regType.connect('clicked(bool)', self.updateLogicFromGUI)
 
-    
     # act Collapsible button
     actCollapsibleButton = ctk.ctkCollapsibleButton()
     actCollapsibleButton.text = "Action Selections"
@@ -286,20 +286,15 @@ class steeredRegWidget:
     self.translation = qt.QRadioButton("Translation", actCollapsibleButton)
     self.translation.toolTip = "Perform translation on 2D slices."
     actCollapsibleButton.layout().addWidget(self.translation)
-    
-    self.scaling = qt.QRadioButton("Scaling", actCollapsibleButton)
-    self.scaling.setToolTip("Perform scaling on 2D slices.")
-    actCollapsibleButton.layout().addWidget(self.scaling)
-    
+
     self.rotation = qt.QRadioButton("Rotation", actCollapsibleButton)
     self.rotation.setToolTip("Perform rotation on 2D slices around center point.")
     actCollapsibleButton.layout().addWidget(self.rotation)
 
-    self.identity = qt.QRadioButton("Identity", actCollapsibleButton)
-    self.identity.setToolTip("Reset transform to identity matrix.")
-    actCollapsibleButton.layout().addWidget(self.identity)
-
-    
+    self.scaling = qt.QRadioButton("Scaling", actCollapsibleButton)
+    self.scaling.setToolTip("Perform scaling on 2D slices.")
+    actCollapsibleButton.layout().addWidget(self.scaling)
+        
     # Run button
     self.runButton = qt.QPushButton("Interaction")
     self.runButton.toolTip = "Run interaction bot."
@@ -307,28 +302,31 @@ class steeredRegWidget:
     actFormLayout.addRow(self.runButton)
     self.runButton.connect('toggled(bool)', self.onRunButtonToggled)
 
+    self.identity = qt.QPushButton("Reset Transform")
+    self.identity.toolTip = "Reset transform to identity matrix."
+    self.layout.addWidget(self.identity);
+    self.identity.connect('clicked()', self.onResetButtonToggled)
 
     # get default values from logic
     self.translation.checked = self.logic.translation
     self.scaling.checked = self.logic.scaling
     self.rotation.checked = self.logic.rotation
-    self.identity.checked = self.logic.identity
 
-    actions = (self.translation, self.scaling, self.rotation, self.identity)
+    actions = (self.translation, self.scaling, self.rotation)
     for action in actions:
       action.connect('clicked(bool)', self.updateLogicFromGUI)
     
     # Add vertical spacer
-    self.layout.addStretch(1)
+    #$self.layout.addStretch(1)
 
     # to support quicker development:
     import os
-    #if os.getenv('USERNAME') == '200019959':
-      #self.logic.testingData()
-      #self.fixedSelector.setCurrentNode(slicer.util.getNode('MRHead*'))
-      #self.movingSelector.setCurrentNode(slicer.util.getNode('neutral*'))
-      #self.transformSelector.setCurrentNode(slicer.util.getNode('movingToFixed*'))
-      #self.initialTransformSelector.setCurrentNode(slicer.util.getNode('movingToFixed*'))
+    if (os.getenv('USERNAME') == '200009249') or (os.getenv('USER') == 'dirkpadfield'):
+      self.logic.testingData()
+      self.fixedSelector.setCurrentNode(slicer.util.getNode('MRHead'))
+      self.movingSelector.setCurrentNode(slicer.util.getNode('neutral'))
+      self.transformSelector.setCurrentNode(slicer.util.getNode('movingToFixed'))
+      self.initialTransformSelector.setCurrentNode(slicer.util.getNode('movingToFixed'))
 
 
   def updateLogicFromGUI(self,args):
@@ -336,7 +334,8 @@ class steeredRegWidget:
     self.logic.moving = self.movingSelector.currentNode()
     self.logic.transform = self.transformSelector.currentNode()
 
-    self.logic.moving.SetAndObserveTransformNodeID(self.logic.transform.GetID())
+    if(self.logic.transform is not None):
+        self.logic.moving.SetAndObserveTransformNodeID(self.logic.transform.GetID())
     
     self.logic.histogramBin = self.histogramBinSlider.value
     self.logic.spatialSample = self.spatialSampleSlider.value
@@ -346,11 +345,11 @@ class steeredRegWidget:
     self.logic.translation = self.translation.checked
     self.logic.scaling = self.scaling.checked
     self.logic.rotation = self.rotation.checked
-    self.logic.identity = self.identity.checked
 
     self.logic.interaction = self.interaction
-  
-    if self.identity.checked:
+ 
+          
+  def onResetButtonToggled(self):
       self.logic.actionState = "identity"
       m = self.logic.transform.GetMatrixTransformToParent()
       for i in range(4):
@@ -358,7 +357,19 @@ class steeredRegWidget:
           m.SetElement(i,j, self.logic.identityMatrix[i][j])
           
    
-  def onApply(self):
+  def onApply(self,checked):
+      if checked:
+          self.regButton.text = "Stop"
+          self.logic.automaticRegistration = True
+          print('Automatic registration = %d' %(self.logic.automaticRegistration))
+          self.startDeformableRegistration()
+      else:
+          self.regButton.text = "Apply"
+          self.logic.automaticRegistration = False
+          print('Automatic registration = %d' %(self.logic.automaticRegistration))
+    
+    
+  def startDeformableRegistration(self):     
     fixedVolume = self.fixedSelector.currentNode()
     movingVolume = self.movingSelector.currentNode()
     #outputVolume = self.outputSelector.currentNode()
@@ -372,26 +383,39 @@ class steeredRegWidget:
     self.parameters['OutputTransform'] = outputTransform.GetID()
     #self.parameters['ResampledImageFileName'] = outputVolume.GetID()
 
-    
     self.parameters['Iterations']=self.regIterationSlider.value
 
     print('registration begin')
     print "return result every %d iterations" %(self.regIterationSlider.value)
     
-    for regRound in xrange(2):       
-      print "round %d" %(regRound)
-      self.affineregModel()
-      
-      m = self.logic.transform.GetMatrixTransformToParent()
+    self.interval = 10; #1000;
+    self.registrationIterationNumber = 0;
+    qt.QTimer.singleShot(self.interval, self.iteration)
+    
+#    for regRound in xrange(2):       
+#      print "round %d" %(regRound)
+#      self.affineregModel()
+#      
+#      m = self.logic.transform.GetMatrixTransformToParent()
+#        
+#      H = [[1.0,0.0,0.0,0.0],[0.0,1.0,0.0,0.0],[0.0,0.0,1.0,0.0],[0.0,0.0,0.0,1.0]]
+#      for i in range(4):
+#        for j in range(4):
+#          H[i][j] = m.GetElement(i,j)
+#        print "[%8.2f %8.2f %8.2f %8.2f]" %(H[i][0], H[i][1], H[i][2], H[i][3])
         
-      H = [[1.0,0.0,0.0,0.0],[0.0,1.0,0.0,0.0],[0.0,0.0,1.0,0.0],[0.0,0.0,0.0,1.0]]
-      for i in range(4):
-        for j in range(4):
-          H[i][j] = m.GetElement(i,j)
-        print "[%8.2f %8.2f %8.2f %8.2f]" %(H[i][0], H[i][1], H[i][2], H[i][3])
-        
-    print('registration done')
 
+  def iteration(self):
+      if not self.logic.automaticRegistration:
+          print('registration done')
+          return
+      self.registrationIterationNumber = self.registrationIterationNumber + 1
+      print('Registering iteration %d' %(self.registrationIterationNumber))
+      
+      self.affineregModel()
+      # Initiate another iteration of the registration algorithm.
+      qt.QTimer.singleShot(self.interval, self.iteration)    
+      
 
   def affineregModel(self):
     print('registering')
@@ -445,6 +469,8 @@ class steeredRegWidget:
         'globals()["%s"].%s(parent)' % (moduleName, widgetName))
     globals()[widgetName.lower()].setup()
 
+
+
 #
 # steeredReg logic
 #
@@ -465,10 +491,9 @@ class steeredRegLogic(object):
     self.regIteration = 50
     self.translationScale = 100.0
 
-    self.translation = False
+    self.translation = True
     self.scaling = False
     self.rotation = False
-    self.identity = False
 
     # slicer nodes set by the GUI
     self.fixed = fixed
@@ -495,7 +520,7 @@ class steeredRegLogic(object):
 
     self.identityMatrix = [[1.0,0.0,0.0,0.0],[0.0,1.0,0.0,0.0],[0.0,0.0,1.0,0.0],[0.0,0.0,0.0,1.0]]
           
-    print("Hello")
+    print("Reload")
     
     self.actionState = "idle"
     self.interactorObserverTags = []
@@ -520,7 +545,7 @@ class steeredRegLogic(object):
       
       if sliceWidget:
           
-        # add obserservers and keep track of tags
+        # add observers and keep track of tags
         style = sliceWidget.sliceView().interactorStyle()
         self.interactor = style.GetInteractor()
         self.sliceWidgetsPerStyle[self.interactor] = sliceWidget
@@ -548,6 +573,43 @@ class steeredRegLogic(object):
       windowSize = sliceNode.GetDimensions()
       windowW = windowSize[0]
       windowH = windowSize[1]
+
+
+
+
+        
+#      ## AFFINE WIDGET
+#      ##
+#      # VTK widgets consist of two parts: the widget part that handles event processing;
+#      # and the widget representation that defines how the widget appears in the scene
+#      # (i.e., matters pertaining to geometry).
+#      rep = vtk.vtkAffineRepresentation2D()
+#      rep.SetBoxWidth(100);
+#      rep.SetCircleWidth(75);
+#      rep.SetAxesWidth(60);
+#      rep.DisplayTextOn();
+#      bounds = ((0,63,0,63,0,0))
+#      rep.PlaceWidget(bounds);
+#
+#      #style = sliceWidget.sliceView().interactorStyle()
+#      #self.interactor = style.GetInteractor()
+#      self.interactor = sliceWidget.sliceView().interactorStyle().GetInteractor()
+#
+#      widget = vtk.vtkAffineWidget()
+#      widget.SetInteractor(self.interactor);
+#      widget.SetRepresentation(rep);
+#      widget.On()
+#        
+#      def WidgetCallback():
+#        transform = vtk.vtkTransform()
+#        rep.GetTransform(transform)
+#        imageActor.SetUserTransform(transform)
+#        print transform
+#
+#      #widget.AddObserver("EndInteractionEvent",WidgetCallback())
+#      widget.AddObserver("InteractionEvent",WidgetCallback())
+
+
 
                                 
       if event == "LeftButtonPressEvent":
@@ -706,7 +768,7 @@ class steeredRegLogic(object):
 
           for i in range(4):
             for j in range(4):
-              m.SetElement(i,j,H21[i][j]) 
+              m.SetElement(i,j,H21[i][j])
 
           self.lastEventPosition=currentEventPosition
           self.abortEvent(event)
@@ -779,7 +841,7 @@ class steeredRegLogic(object):
 
             for i in range(4):
               for j in range(4):
-                m.SetElement(i,j,H21[i][j]) 
+                m.SetElement(i,j,H21[i][j])
 
           self.lastEventPosition=currentEventPosition
           self.abortEvent(event)
@@ -807,10 +869,10 @@ class steeredRegLogic(object):
     
 
   def abortEvent(self,event):
-    """Set the AbortFlag on the vtkCommand associated 
-    with the event - causes other things listening to the 
+    """Set the AbortFlag on the vtkCommand associated
+    with the event - causes other things listening to the
     interactor not to receive the events"""
-    # TODO: make interactorObserverTags a map to we can 
+    # TODO: make interactorObserverTags a map to we can
     # explicitly abort just the event we handled - it will
     # be slightly more efficient
     for tag in self.interactorObserverTags:
@@ -818,41 +880,40 @@ class steeredRegLogic(object):
       cmd.SetAbortFlag(1)
 
 
-##  def testingData(self):
-##    """Load some default data for development
-##    and set up a transform and viewing scenario for it.
-##    """
-##    if not slicer.util.getNodes('MRHead*'):
-##      import os
-##      fileName = "C:\Projects\NAMIC\data\MR-head.nrrd"
-##      vl = slicer.modules.volumes.logic()
-##      volumeNode = vl.AddArchetypeVolume(fileName, "MRHead", 0)
-##    if not slicer.util.getNodes('neutral*'):
-##      import os
-##      fileName = "C:\Projects\NAMIC\data\spgr.nrrd"
-##      vl = slicer.modules.volumes.logic()
-##      volumeNode = vl.AddArchetypeVolume(fileName, "neutral", 0)
-##    if not slicer.util.getNodes('movingToFixed'):
-##      # Create transform node
-##      transform = slicer.vtkMRMLLinearTransformNode()
-##      transform.SetName('movingToFixed')
-##      slicer.mrmlScene.AddNode(transform)
-##    head = slicer.util.getNode('MRHead')
-##    neutral = slicer.util.getNode('neutral')
-##    transform = slicer.util.getNode('movingToFixed')
-##    ###
-##    # neutral.SetAndObserveTransformNodeID(transform.GetID())
-##    ###
-##    compositeNodes = slicer.util.getNodes('vtkMRMLSliceCompositeNode*')
-##    for compositeNode in compositeNodes.values():
-##      compositeNode.SetBackgroundVolumeID(head.GetID())
-##      compositeNode.SetForegroundVolumeID(neutral.GetID())
-##      compositeNode.SetForegroundOpacity(0.5)
-##    applicationLogic = slicer.app.applicationLogic()
-##    applicationLogic.FitSliceToAll()
+  def testingData(self):
+    """Load some default data for development
+    and set up a transform and viewing scenario for it.
+    """
+    if not slicer.util.getNodes('MRHead*'):
+      import os
+      fileName = "/home/dirkpadfield/src/NAMIC/MR-head.nrrd"
+      vl = slicer.modules.volumes.logic()
+      volumeNode = vl.AddArchetypeVolume(fileName, "MRHead", 0)
+    if not slicer.util.getNodes('neutral*'):
+      import os
+      fileName = "/home/dirkpadfield/src/NAMIC/helloPython/data/spgr.nhdr"
+      vl = slicer.modules.volumes.logic()
+      volumeNode = vl.AddArchetypeVolume(fileName, "neutral", 0)
+    if not slicer.util.getNodes('movingToFixed*'):
+      # Create transform node
+      transform = slicer.vtkMRMLLinearTransformNode()
+      transform.SetName('movingToFixed')
+      slicer.mrmlScene.AddNode(transform)
+    head = slicer.util.getNode('MRHead')
+    neutral = slicer.util.getNode('neutral')
+    transform = slicer.util.getNode('movingToFixed')
+    ###
+    # neutral.SetAndObserveTransformNodeID(transform.GetID())
+    ###
+    compositeNodes = slicer.util.getNodes('vtkMRMLSliceCompositeNode*')
+    for compositeNode in compositeNodes.values():
+      compositeNode.SetBackgroundVolumeID(head.GetID())
+      compositeNode.SetForegroundVolumeID(neutral.GetID())
+      compositeNode.SetForegroundOpacity(0.5)
+    applicationLogic = slicer.app.applicationLogic()
+    applicationLogic.FitSliceToAll()
 
 
     
-
 
 
